@@ -127,7 +127,7 @@ celerybeat.pid
 env/
 venv/
 course/
-antivirus_s3/
+# antivirus_s3/
 ENV/
 env.bak/
 venv.bak/
