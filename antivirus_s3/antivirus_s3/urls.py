@@ -21,7 +21,7 @@ from . import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('analyze_files/', views.analyze_files, name='analyze_files'),
+    path('analyze_file/<int:file>/', views.analyze_files, name='analyze_files'),
     path('analyze_bucket/', views.analyze_bucket, name='analyze_bucket'),
     path('reports/', views.reports, name='reports'),
 ]

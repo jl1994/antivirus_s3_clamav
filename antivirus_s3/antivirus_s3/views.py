@@ -3,8 +3,7 @@
 from django.http import HttpResponse
 
 
-def analyze_files(file):
-    print(f'Scanning file = {file}')
+def analyze_files(request, file):
     return HttpResponse(f'Archivo {file} Analizado')
 
 
