@@ -126,6 +126,8 @@ celerybeat.pid
 .venv
 env/
 venv/
+course/
+antivirus_s3/
 ENV/
 env.bak/
 venv.bak/
