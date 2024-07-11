@@ -23,5 +23,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('analyze_file/<int:file>/', views.analyze_files, name='analyze_files'),
     path('analyze_bucket/', views.analyze_bucket, name='analyze_bucket'),
+    path("login/<int:token>", views.login, name='login'),
     path('reports/', views.reports, name='reports'),
 ]
