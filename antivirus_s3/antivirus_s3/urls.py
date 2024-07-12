@@ -25,4 +25,5 @@ urlpatterns = [
     path('analyze_bucket/', views.analyze_bucket, name='analyze_bucket'),
     path("login/<int:token>", views.login, name='login'),
     path('reports/', views.reports, name='reports'),
+    path("", views.index, name="index"),
 ]
