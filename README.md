@@ -1,4 +1,4 @@
-# SEMINARIO2024A
+# Antivirus S3 ClamAV
 
 Proyecto Seminario de Grado
 
@@ -12,3 +12,10 @@ This repository allows deployment of the resources to support my application as 
 Conceptos visto en Django.
 
 MVC - Modelo + Vista + Controlador
+
+Comandos a lo largo del curso:
+
+❯ python3 manage.py migrate
+
+Plantillas - Visual HTML
+index.html -> Landing del proyecto
