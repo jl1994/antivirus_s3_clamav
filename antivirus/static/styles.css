@@ -45,7 +45,7 @@ body {
 }
 
 .container {
-  max-width: 120rem;
+  max-width: 100rem;
   margin: 0 auto;
 }
 
@@ -91,7 +91,7 @@ body {
   background-image: url(/static/banner.jpg);
   background-repeat: no-repeat;
   background-size: cover;
-  height: 70rem;
+  height: 30rem;
   /* padding: 20px; */
   position: relative;
   margin-bottom: 2rem;

@@ -1,6 +1,5 @@
 """
-URL configuration for antivirus_s3 project.
-URLs y vistas para controlar las peticiones HTTP.
+URL configuration for antivirus project.
 
 The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/5.0/topics/http/urls/
@@ -20,10 +19,10 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('analyze_file/<int:file>/', views.analyze_files, name='analyze_files'),
-    path('analyze_bucket/', views.analyze_bucket, name='analyze_bucket'),
-    path("login/<int:token>", views.login, name='login'),
-    path('reports/', views.reports, name='reports'),
-    path("", views.index, name="index"),
+    path("",  views.index,    name="index"),
+    path("admin/", admin.site.urls),
+    path("login/<str:user_id>", views.login, name="login"),
+    path("scan-messages/", views.scan_messages, name="scan-messages"),
+    path("scan-sqs-messages/", views.scan_sqs_messages, name="scan-sqs-messages"),
+    path("contact/", views.contact, name="contact"),
 ]

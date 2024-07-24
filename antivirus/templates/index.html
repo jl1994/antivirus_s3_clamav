@@ -4,7 +4,6 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
     <link rel="preload" href="{% static 'normalize.css' %}" as="style" />
     <link
       rel="stylesheet"
@@ -18,7 +17,6 @@
       rel="stylesheet"
     />
     <link rel="preload" href="{% static 'styles.css' %}" as="style" />
-
     <link rel="stylesheet" href="{% static 'styles.css' %}" type="text/css" />
     <title>Antivirus S3 AWS</title>
   </head>
@@ -29,11 +27,9 @@
 
     <div class="main-navigation-bg">
       <nav class="main-navigation container">
-        <a href="">Home</a>
-        <a href="">About</a>
-        <a href="#">Scan File</a>
-        <a href="#">SQS Statistics S3</a>
-        <a href="#">Contact</a>
+        <a href="/">Home</a>
+        <a href="/scan-messages">Scan S3</a>
+        <a href="/contact">Contact</a>
       </nav>
     </div>
 
@@ -71,17 +67,15 @@
           <p>Johan Luna</p>
         </div>
       </div>
-      <!-- .banner-content -->
     </section>
 
     <main class="container">
       <section class="block">
-        <h2>Scan File</h2>
+        <h2>Upload File</h2>
         <input type="file" name="file" required />
         <button type="submit">Upload and Scan File</button>
       </section>
-      <section class="block">
-    
+
       <section class="block">
         <h2>Scan Statistics</h2>
         <p>Total Files Processed: 0</p>
