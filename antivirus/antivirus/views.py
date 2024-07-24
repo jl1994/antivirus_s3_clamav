@@ -1,24 +1,15 @@
 from django.http import HttpResponse
 from django.shortcuts import render
 
-# Logica de Autenticacion
-
-VALID_USERS = {
-    "johanluna777@gmail.com": "1143966442",
-    "josemanuelluna2018@gmail.com": "1104806077"
-}
-
 
 def index(request):
     return render(request, "index.html", {})
 
 
 def login(request, user_id):
-    print(f"User ID: {user_id}")
-    username = request.GET.get("username")
-    password = request.GET.get("password")
-    print(f"User: {username} Password: {password}")
-    return HttpResponse("Endpoint Login UserID: " + user_id)
+    roles = ["admin", "user", "guest"]
+    context = {"user_id": user_id, "roles": roles}
+    return render(request, "login.html", context)
 
 
 def scan_messages(request):
