@@ -1,16 +1,24 @@
-{% extends "base.html" %} {% block title %} Antivirus S3 AWS {% endblock %}
-{%block content %}
+{% extends "./layouts/base.html" %}
 
-{% comment %} <section class="block">
-  <h2>Upload File</h2>
-  <input type="file" name="file" required />
-  <button type="submit">Upload and Scan File</button>
-</section> {% endcomment %}
+{% block title %}Antivirus S3 AWS{% endblock %}
 
+{% block content %}
 <section class="block">
   <h2>Scan Statistics</h2>
-  <p>Total Files Processed: 0</p>
-  <p>Total Infected Files: 0</p>
+  <p>Total Files Processed: <span id="total-files">0</span></p>
+  <p>Total Infected Files: <span id="total-infected">0</span></p>
+  <button id="update-stats">Update Statistics</button>
 </section>
 
+<script>
+  document.getElementById('update-stats').addEventListener('click', function() {
+    fetch('/get-scan-statistics/')
+      .then(response => response.json())
+      .then(data => {
+        document.getElementById('total-files').textContent = data.total_files;
+        document.getElementById('total-infected').textContent = data.total_infected;
+      })
+      .catch(error => console.error('Error:', error));
+  });
+</script>
 {% endblock %}
