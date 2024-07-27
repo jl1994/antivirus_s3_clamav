@@ -1,19 +1,3 @@
-"""
-URL configuration for antivirus project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
 from django.urls import path
 from . import views
@@ -25,4 +9,10 @@ urlpatterns = [
     path("scan-messages/", views.scan_messages, name="scan-messages"),
     path("scan-sqs-messages/", views.scan_sqs_messages, name="scan-sqs-messages"),
     path("contact/", views.contact, name="contact"),
+    path("record-scan/", views.record_scan, name="record-scan"),
+    path("get-scan-statistics/", views.get_scan_statistics, name="get-scan-statistics"),
+     path('download-file/', views.download_file_view, name='download_file'),
 ]
+
+
+

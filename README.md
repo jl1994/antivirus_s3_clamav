@@ -19,3 +19,7 @@ Comandos a lo largo del curso:
 
 Plantillas - Visual HTML
 index.html -> Landing del proyecto
+
+Herencia de templates [OK]
+
+Modelo de Datos [Process]

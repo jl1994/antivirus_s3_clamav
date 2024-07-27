@@ -1,0 +1,15 @@
+{% extends "base.html" %} {% block title %} Login {% endblock %} 
+
+{%block content %}
+
+<p>UserID: {{user_id}}</p>
+<p>Roles: {{roles}}</p>
+<ul>
+  {% for role in roles %} {% if role == 'admin' %}
+  <li><b>{{role|upper}}</b></li>
+  {% else %}
+  <li>{{role}}</li>
+  {% endif %} {% endfor%}
+  <h5>Total: {{roles|length}}</h5>
+</ul>
+{% endblock %}

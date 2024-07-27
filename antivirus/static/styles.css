@@ -3,6 +3,7 @@ html {
 }
 
 body {
+  font-family: "Roboto", sans-serif;
   font-size: 16px;
 }
 
@@ -10,11 +11,14 @@ body {
   text-align: center;
   font-size: 3.8rem;
   color: var(--dark);
+  margin: 2rem 0;
 }
 
 .title span {
   font-size: 2rem;
+  color: var(--secondary);
 }
+
 
 /* Colors */
 :root {
@@ -40,16 +44,21 @@ body {
   --light: #d3f3ee;
   --dark: #403f4c;
   --gris-claro: #dfe9f3;
-  /* --fuentePrimaria: 'Krub', sans-serif; */
-  --fuentePrimaria: "Roboto", sans-serif;
+  --fuentePrimaria: 'Roboto', sans-serif;
 }
 
 .container {
-  max-width: 100rem;
+  max-width: 90rem;
   margin: 0 auto;
 }
 
+.container-main {
+  height: auto;
+}
+
+
 /* Main Navigation */
+
 .main-navigation-bg {
   background-color: var(--blue);
 }
@@ -57,9 +66,10 @@ body {
 .main-navigation {
   display: flex;
   flex-direction: column;
-  /* align-items: center; */
   margin-top: 3rem;
 }
+
+
 
 @media (min-width: 480px) {
   .main-navigation {
@@ -73,11 +83,13 @@ body {
   text-align: center;
   color: var(--white);
   text-decoration: none;
-  font-size: 1.5rem;
+  font-size: 1.6rem;
   font-weight: bold;
   text-transform: uppercase;
   padding: 1rem;
+  transition: background-color 0.3s, color 0.3s;
 }
+
 
 .main-navigation a:hover {
   background-color: var(--white);
@@ -85,43 +97,40 @@ body {
   border-radius: 1rem;
 }
 
-/* Banner  */
-
+/* Banner */
 .banner {
   background-image: url(/static/banner.jpg);
   background-repeat: no-repeat;
   background-size: cover;
-  height: 30rem;
-  /* padding: 20px; */
+  height: 40rem;
   position: relative;
   margin-bottom: 2rem;
 }
+
+
 
 .banner h2 {
   text-align: center;
 }
 
+
 .banner-content {
   position: absolute;
-  /* Apply shade */
-  /* background-color: rgba(0, 0, 0, .6); */
   background-color: rgb(0 0 0 / 70%);
   width: 100%;
   height: 100%;
-  /* top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0; */
-  /* Alinear horizontalmente */
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
 }
 
+
 /* CSS Box Model */
 .banner-content h2 {
   color: var(--white);
+  font-weight: normal;
+  padding-bottom: 1rem;
 }
 
 .banner-content p {
@@ -134,10 +143,11 @@ body {
   align-items: flex-end;
 }
 
+
 /* Main block */
 .block {
-  border: 1px solid var(--blue);
-  padding: 1rem;
+  border: 1.5px solid var(--blue);
+  padding: 2rem;
   margin: 1rem 0;
   border-radius: 8px;
 }
@@ -165,4 +175,68 @@ body {
 
 .block button:hover {
   background-color: var(--dark);
+}
+
+.footer-content {
+  display: flex;
+  justify-content: space-between;
+  padding: 20px 0;
+  border-top: 1px solid #ddd;
+}
+
+footer {
+  /* background-color: var(--light); */
+  color: var(--gray-dark);
+  padding: 3rem 0;
+  margin-top: 3rem;
+  border-top: 1px solid var(--gray);
+}
+
+.footer-content {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  padding: 2rem 0;
+}
+
+.footer-section {
+  flex: 1;
+  min-width: 200px;
+  padding: 1rem;
+}
+
+.footer-section h4 {
+  margin-bottom: 1rem;
+  color: var(--dark);
+}
+
+.footer-section p,
+.footer-section ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.footer-section ul li {
+  margin-bottom: 0.5rem;
+}
+
+.footer-section ul li a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+.footer-section ul li a:hover {
+  color: var(--secondary);
+}
+
+.footer-bottom {
+  text-align: center;
+  padding: 1rem 0;
+  border-top: 1px solid var(--gray);
+}
+
+.footer-bottom p {
+  margin: 0;
 }

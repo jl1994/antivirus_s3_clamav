@@ -1,90 +1,27 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="preload" href="{% static 'normalize.css' %}" as="style" />
-    <link
-      rel="stylesheet"
-      href="{% static 'normalize.css' %}"
-      type="text/css"
-    />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="preload" href="{% static 'styles.css' %}" as="style" />
-    <link rel="stylesheet" href="{% static 'styles.css' %}" type="text/css" />
-    <title>Antivirus S3 AWS</title>
-  </head>
-  <body>
-    <header>
-      <h1 class="title">S3 Antivirus <span> ClamAV</span></h1>
-    </header>
+{% extends "./layouts/base.html" %}
 
-    <div class="main-navigation-bg">
-      <nav class="main-navigation container">
-        <a href="/">Home</a>
-        <a href="/scan-messages">Scan S3</a>
-        <a href="/contact">Contact</a>
-      </nav>
-    </div>
+{% block title %}Antivirus S3 AWS{% endblock %}
 
-    <section class="banner">
-      <div class="banner-content">
-        <h2 class="container">
-          You now can analyze suspicious files to detect malware and other
-          security breaches using ClamAV as the antivirus engine.
-        </h2>
+{% block content %}
+<section class="block">
+  <h2>Scan Statistics</h2>
+  <p>Total Files Processed: <span id="total-files">0</span></p>
+  <p>Total Infected Files: <span id="total-infected">0</span></p>
+  <p>Total Clean Files: <span id="total-clean">0</span></p>
+  <button id="update-stats">Update Statistics</button>
+</section>
 
-        <div class="location">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="icon icon-tabler icon-tabler-shield-half-filled"
-            width="60"
-            height="60"
-            viewBox="0 0 24 24"
-            stroke-width="1.5"
-            stroke="#3371e3"
-            fill="none"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-            <path
-              d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"
-            />
-            <path d="M12 3v18" />
-            <path d="M12 11h8.9" />
-            <path d="M12 8h8.9" />
-            <path d="M12 5h3.1" />
-            <path d="M12 17h6.2" />
-            <path d="M12 14h8" />
-          </svg>
-          <p>Johan Luna</p>
-        </div>
-      </div>
-    </section>
+<script>
+  document.getElementById('update-stats').addEventListener('click', function() {
+    fetch('/get-scan-statistics/')
+      .then(response => response.json())
+      .then(data => {
+        document.getElementById('total-files').textContent = data.total_files;
+        document.getElementById('total-infected').textContent = data.total_infected;
+        document.getElementById('total-clean').textContent = data.total_clean;
+      })
+      .catch(error => console.error('Error:', error));
+  });
+</script>
+{% endblock %}
 
-    <main class="container">
-      <section class="block">
-        <h2>Upload File</h2>
-        <input type="file" name="file" required />
-        <button type="submit">Upload and Scan File</button>
-      </section>
-
-      <section class="block">
-        <h2>Scan Statistics</h2>
-        <p>Total Files Processed: 0</p>
-        <p>Total Infected Files: 0</p>
-      </section>
-    </main>
-
-    <footer>
-      <p>All rights reserved.</p>
-    </footer>
-  </body>
-</html>
