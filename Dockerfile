@@ -1,24 +1,32 @@
-# Use the official Python image from the Docker Hub
+# Imagen base
 FROM python:3.9-slim
 
-# Set the working directory inside the container
-WORKDIR /app
+# Instalar ClamAV
+RUN apt-get update && \
+    apt-get install -y clamav clamav-daemon && \
+    freshclam && \
+    apt-get clean
 
-# Copy the requirements file into the container
-COPY requirements.txt /app/
-
-# Install the dependencies
+# Copiar el archivo de requisitos y la aplicación
+COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code into the container
-COPY . /app/
 
-# Set environment variables for Django
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# Copiar los archivos de la aplicación
+COPY . .
 
-# Expose the port that the app runs on
-EXPOSE 8000
+# Establecer directorio de trabajo
+WORKDIR /antivirus_s3/
 
-# Run the application
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# Crear directorio para subidas
+RUN mkdir -p /tmp/uploads
+
+# Establecer variables de entorno
+ENV DJANGO_ENV=development
+ENV DJANGO_DEBUG=True
+
+# Exponer el puerto en el que Django correrá
+EXPOSE 80
+
+# Comando para ejecutar la aplicación
+CMD ["python", "manage.py", "runserver", "0.0.0.0:80"]

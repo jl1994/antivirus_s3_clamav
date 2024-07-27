@@ -2,6 +2,7 @@
 training/
 .DS_Store
 .vscode/
+files_demo/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
