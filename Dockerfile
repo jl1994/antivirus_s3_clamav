@@ -1,32 +1,78 @@
-# Imagen base
-FROM python:3.9-slim
+# ============================================
+# S3 ANTIVIRUS SCANNER - DOCKERFILE
+# ============================================
+# Imagen Docker con ClamAV + Python Worker
+# Para escaneo automatizado de archivos S3
+# ============================================
 
-# Instalar ClamAV
+FROM python:3.11-slim
+
+LABEL maintainer="Johan Luna <johanluna777@gmail.com>"
+LABEL description="S3 Antivirus Scanner with ClamAV - TFM UNIR"
+LABEL version="1.0.0"
+
+# Evitar prompts interactivos durante instalación
+ENV DEBIAN_FRONTEND=noninteractive
+
+# ============================================
+# INSTALACIÓN DE CLAMAV
+# ============================================
+
 RUN apt-get update && \
-    apt-get install -y clamav clamav-daemon && \
-    freshclam && \
-    apt-get clean
+    apt-get install -y --no-install-recommends \
+        clamav \
+        clamav-daemon \
+        clamav-freshclam \
+        wget \
+        curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copiar el archivo de requisitos y la aplicación
-COPY requirements.txt requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# Actualizar firmas de ClamAV
+RUN freshclam || echo "FreshClam update failed, continuing..."
 
+# ============================================
+# CONFIGURACIÓN PYTHON
+# ============================================
 
-# Copiar los archivos de la aplicación
-COPY . .
+# Directorio de trabajo
+WORKDIR /app
 
-# Establecer directorio de trabajo
-WORKDIR /antivirus_s3/
+# Copiar requirements
+COPY requirements.txt .
 
-# Crear directorio para subidas
-RUN mkdir -p /tmp/uploads
+# Instalar dependencias Python
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Establecer variables de entorno
-ENV DJANGO_ENV=development
-ENV DJANGO_DEBUG=True
+# ============================================
+# COPIAR CÓDIGO
+# ============================================
 
-# Exponer el puerto en el que Django correrá
-EXPOSE 80
+# Copiar worker script
+COPY scanner_worker.py .
 
-# Comando para ejecutar la aplicación
-CMD ["python", "manage.py", "runserver", "0.0.0.0:80"]
+# Hacer ejecutable
+RUN chmod +x scanner_worker.py
+
+# ============================================
+# VARIABLES DE ENTORNO
+# ============================================
+
+ENV AWS_REGION=us-east-1
+ENV LOG_LEVEL=INFO
+ENV PYTHONUNBUFFERED=1
+
+# ============================================
+# HEALTHCHECK
+# ============================================
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD pgrep -f scanner_worker.py || exit 1
+
+# ============================================
+# ENTRYPOINT
+# ============================================
+
+# Actualizar ClamAV en background y ejecutar worker
+CMD freshclam -d & python3 -u scanner_worker.py

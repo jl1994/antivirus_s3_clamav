@@ -1,0 +1,33 @@
+# ============================================
+# TERRAFORM VARIABLES - EJEMPLO
+# ============================================
+# Copia este archivo a terraform.tfvars
+# y ajusta los valores según tu entorno
+# ============================================
+
+# AWS Configuration
+region  = "us-east-1"
+profile = "netluna"
+
+# Project Configuration
+project     = "s3-antivirus-tfm"
+environment = "dev"
+owner       = "Johan Luna"
+
+# Networking Configuration
+# IMPORTANTE: Usando rango poco común para evitar solapamiento con redes de clientes
+vpc_cidr           = "10.200.0.0/16"
+enable_nat_gateway = true
+
+# Notification Configuration
+notification_email = "johanluna777@gmail.com"
+
+# ECS Task Configuration
+task_cpu    = "512"   # 0.5 vCPU
+task_memory = "1024"  # 1 GB
+
+# Auto Scaling Configuration
+desired_task_count = 1
+enable_autoscaling = true
+min_task_count     = 1
+max_task_count     = 5

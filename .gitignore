@@ -1,8 +1,9 @@
-# For me
-training/
+# Project specific
 .DS_Store
 .vscode/
-files_demo/
+test-files/
+TFM/
+docs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -132,8 +133,6 @@ celerybeat.pid
 .venv
 env/
 venv/
-course/
-# antivirus_s3/
 ENV/
 env.bak/
 venv.bak/
