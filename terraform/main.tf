@@ -148,6 +148,7 @@ module "compute" {
   security_group_id      = module.networking.ecs_tasks_security_group_id
   sqs_queue_url          = module.notifications.sqs_queue_url
   sqs_queue_name         = module.notifications.sqs_queue_name
+  monitored_bucket_name  = local.monitored_bucket_name
   quarantine_bucket_name = local.quarantine_bucket_name
   sns_topic_arn          = module.notifications.sns_topic_arn
 

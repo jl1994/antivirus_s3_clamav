@@ -123,6 +123,10 @@ resource "aws_ecs_task_definition" "antivirus_scanner" {
           value = var.sqs_queue_url
         },
         {
+          name  = "S3_MONITORED_BUCKET"
+          value = var.monitored_bucket_name
+        },
+        {
           name  = "S3_QUARANTINE_BUCKET"
           value = var.quarantine_bucket_name
         },

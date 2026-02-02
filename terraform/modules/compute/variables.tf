@@ -49,6 +49,11 @@ variable "sqs_queue_name" {
   type        = string
 }
 
+variable "monitored_bucket_name" {
+  description = "Name of the monitored bucket"
+  type        = string
+}
+
 variable "quarantine_bucket_name" {
   description = "Name of the quarantine bucket"
   type        = string
