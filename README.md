@@ -148,11 +148,11 @@
 ### Configurar AWS CLI
 
 ```bash
-# Configurar perfil de AWS
-aws configure --profile netluna
+# Configurar AWS CLI (usar perfil default)
+aws configure
 
 # Verificar credenciales
-aws sts get-caller-identity --profile netluna
+aws sts get-caller-identity
 ```
 
 ---
@@ -192,19 +192,20 @@ cp terraform.tfvars.example terraform.tfvars
 ```hcl
 # AWS Configuration
 region  = "us-east-1"       # Región AWS donde desplegar
-profile = "netluna"         # Perfil AWS CLI configurado
+profile = "default"         # Perfil AWS CLI configurado
 
 # Project Configuration
-project     = "s3-antivirus-tfm"
+project     = "s3-antivirus"
 environment = "dev"
-owner       = "Tu Nombre"
+owner       = "Johan Luna"
 
 # Networking Configuration
 vpc_cidr           = "10.200.0.0/16"  # CIDR poco común para evitar solapamiento
 enable_nat_gateway = true              # Habilitar NAT Gateway ($0.045/hora)
 
 # Notification Configuration
-notification_email = "tu-email@example.com"  # ⚠️ IMPORTANTE: Cambiar a tu email
+notification_email = "tu-email@example.com"     # ⚠️ IMPORTANTE: Cambiar a tu email
+notification_phone = "+57XXXXXXXXXX"            # (Opcional) Número para alertas SMS en formato E.164
 
 # ECS Task Configuration
 task_cpu    = "512"   # 0.5 vCPU
@@ -224,8 +225,7 @@ Si quieres almacenar el state de Terraform en S3:
 1. Crear bucket para Terraform state:
 
 ```bash
-aws s3 mb s3://tu-terraform-state-bucket --profile netluna
-```
+aws s3 mb s3://tu-terraform-state-bucket ```
 
 2. Descomentar y configurar en `terraform/main.tf`:
 
@@ -234,7 +234,7 @@ backend "s3" {
   bucket  = "tu-terraform-state-bucket"
   key     = "s3-antivirus/terraform.tfstate"
   region  = "us-east-1"
-  profile = "netluna"
+  profile = "default"
   encrypt = true
 }
 ```
@@ -291,15 +291,18 @@ Escribe `yes` cuando se te solicite confirmación.
 
 ⏱️ **Tiempo estimado**: 5-7 minutos
 
-#### **Paso 4: Confirmar Suscripción SNS**
+#### **Paso 4: Confirmar Suscripciones SNS**
 
-Después del deploy, recibirás un email de AWS SNS:
+Después del deploy, recibirás notificaciones de AWS SNS:
 
+**Email:**
 ```
 Subject: AWS Notification - Subscription Confirmation
 ```
+**¡IMPORTANTE!** Haz clic en **"Confirm subscription"** en el email para activar las notificaciones por correo.
 
-**¡IMPORTANTE!** Haz clic en **"Confirm subscription"** en el email para activar las notificaciones.
+**SMS (si configuraste notification_phone):**
+Recibirás un mensaje de texto con un enlace de confirmación. Responde según las instrucciones para activar alertas SMS.
 
 #### **Paso 5: Build y Push de Imagen Docker**
 
@@ -308,7 +311,7 @@ Subject: AWS Notification - Subscription Confirmation
 ECR_URL=$(terraform output -raw ecr_repository_url)
 
 # Login a ECR
-aws ecr get-login-password --region us-east-1 --profile netluna | \
+aws ecr get-login-password --region us-east-1 | \
   docker login --username AWS --password-stdin $ECR_URL
 
 # Build imagen Docker (desde el root del proyecto)
@@ -337,8 +340,7 @@ aws ecs update-service \
   --cluster $ECS_CLUSTER \
   --service $ECS_SERVICE \
   --force-new-deployment \
-  --profile netluna
-```
+  ```
 
 #### **Paso 7: Verificar Deployment**
 
@@ -347,14 +349,12 @@ aws ecs update-service \
 aws ecs list-tasks \
   --cluster $ECS_CLUSTER \
   --service-name $ECS_SERVICE \
-  --profile netluna
-
+  
 # Ver logs de CloudWatch
 make logs
 
 # O manualmente:
-aws logs tail /ecs/s3-antivirus-tfm --follow --profile netluna
-```
+aws logs tail /ecs/s3-antivirus --follow ```
 
 ---
 
@@ -404,14 +404,12 @@ echo "This is a clean test file" > clean-test.txt
 
 # Subir a S3 (cambiar BUCKET_NAME por el nombre de tu bucket)
 BUCKET_NAME=$(cd terraform && terraform output -raw monitored_bucket_name)
-aws s3 cp clean-test.txt s3://$BUCKET_NAME/ --profile netluna
-
+aws s3 cp clean-test.txt s3://$BUCKET_NAME/ 
 # Verificar tags después de ~30 segundos
 aws s3api get-object-tagging \
   --bucket $BUCKET_NAME \
   --key clean-test.txt \
-  --profile netluna
-
+  
 # Output esperado:
 # {
 #   "TagSet": [
@@ -429,12 +427,10 @@ aws s3api get-object-tagging \
 echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > eicar.txt
 
 # Subir a S3
-aws s3 cp eicar.txt s3://$BUCKET_NAME/ --profile netluna
-
+aws s3 cp eicar.txt s3://$BUCKET_NAME/ 
 # Verificar que fue movido a cuarentena después de ~30 segundos
 QUARANTINE_BUCKET=$(cd terraform && terraform output -raw quarantine_bucket_name)
-aws s3 ls s3://$QUARANTINE_BUCKET/infected/ --recursive --profile netluna
-
+aws s3 ls s3://$QUARANTINE_BUCKET/infected/ --recursive 
 # Verificar que recibiste email de alerta
 ```
 
@@ -463,10 +459,9 @@ make logs
 
 # Logs con filtro
 aws logs filter-log-events \
-  --log-group-name /ecs/s3-antivirus-tfm \
+  --log-group-name /ecs/s3-antivirus \
   --filter-pattern "INFECTED" \
-  --profile netluna
-```
+  ```
 
 ### Métricas en CloudWatch
 
@@ -530,11 +525,9 @@ Estimación de costos mensuales en `us-east-1` (730 horas/mes):
 make logs
 
 # 2. Verificar que la imagen Docker existe en ECR
-aws ecr describe-images --repository-name s3-antivirus-tfm-scanner --profile netluna
-
+aws ecr describe-images --repository-name s3-antivirus-scanner 
 # 3. Verificar roles IAM
-aws iam get-role --role-name s3-antivirus-tfm-ecs-task-role --profile netluna
-```
+aws iam get-role --role-name s3-antivirus-ecs-task-role ```
 
 ### Problema: No recibo emails de alerta
 
@@ -546,8 +539,7 @@ aws iam get-role --role-name s3-antivirus-tfm-ecs-task-role --profile netluna
 ```bash
 aws sns list-subscriptions-by-topic \
   --topic-arn $(cd terraform && terraform output -raw sns_topic_arn) \
-  --profile netluna
-```
+  ```
 
 ### Problema: Archivo no se escanea
 
@@ -558,12 +550,10 @@ aws sns list-subscriptions-by-topic \
 aws sqs get-queue-attributes \
   --queue-url $(cd terraform && terraform output -raw sqs_queue_url) \
   --attribute-names All \
-  --profile netluna
-
+  
 # 2. Verificar notificaciones S3 están configuradas
 BUCKET=$(cd terraform && terraform output -raw monitored_bucket_name)
-aws s3api get-bucket-notification-configuration --bucket $BUCKET --profile netluna
-```
+aws s3api get-bucket-notification-configuration --bucket $BUCKET ```
 
 ### Problema: Error "terraform init failed"
 
@@ -634,7 +624,7 @@ Este proyecto está licenciado bajo Apache License 2.0 - ver [LICENSE](LICENSE) 
 **Johan Ederlien Luna Bermeo**  
 🎓 Máster en Ciberseguridad - Universidad Internacional de La Rioja (UNIR)  
 📧 Email: johanluna777@gmail.com  
-🔗 LinkedIn: [linkedin.com/in/johanluna](https://linkedin.com/in/johanluna)  
+🔗 LinkedIn: [linkedin.com/in/johanluna](https://www.linkedin.com/in/johan-ederlien-luna-bermeo-b425ab98/)  
 🐙 GitHub: [@jl1994](https://github.com/jl1994)
 
 ---

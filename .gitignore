@@ -1,9 +1,9 @@
 # Project specific
 .DS_Store
 .vscode/
-test-files/
-TFM/
-docs/
+*.docx
+*.ppt
+*.pdf
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
