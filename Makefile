@@ -94,50 +94,47 @@ deploy: validate ## Despliegue completo (Terraform + Docker + ECS)
 	@echo "$(GREEN)  INICIANDO DESPLIEGUE COMPLETO$(NC)"
 	@echo "$(BLUE)════════════════════════════════════════════════════$(NC)"
 	@echo ""
-	
+	@echo "$(GREEN)[0/6] Inicializando providers Terraform...$(NC)"
+	@cd terraform && terraform init -upgrade
+	@echo ""
 	@echo "$(GREEN)[1/6] Aplicando infraestructura Terraform...$(NC)"
 	@cd terraform && terraform apply -auto-approve
-	
 	@echo ""
 	@echo "$(GREEN)[2/6] Obteniendo URL del repositorio ECR...$(NC)"
-	$(eval ECR_URL := $(shell cd terraform && terraform output -raw ecr_repository_url))
-	@echo "$(YELLOW)ECR URL: $(ECR_URL)$(NC)"
-	
-	@echo ""
-	@echo "$(GREEN)[3/6] Login a ECR...$(NC)"
-	@aws ecr get-login-password --region $(AWS_REGION) --profile $(AWS_PROFILE) | \
-		docker login --username AWS --password-stdin $(ECR_URL)
-	
-	@echo ""
-	@echo "$(GREEN)[4/6] Construyendo imagen Docker (linux/amd64)...$(NC)"
-	@docker buildx build --platform linux/amd64 -t $(PROJECT_NAME) .
-	
-	@echo ""
-	@echo "$(GREEN)[5/6] Pushing imagen a ECR...$(NC)"
-	@docker tag $(PROJECT_NAME):latest $(ECR_URL):latest
-	@docker push $(ECR_URL):latest
-	
-	@echo ""
-	@echo "$(GREEN)[6/6] Forzando redespliegue de ECS...$(NC)"
-	$(eval ECS_CLUSTER := $(shell cd terraform && terraform output -raw ecs_cluster_name))
-	$(eval ECS_SERVICE := $(shell cd terraform && terraform output -raw ecs_service_name))
-	@aws ecs update-service \
-		--cluster $(ECS_CLUSTER) \
-		--service $(ECS_SERVICE) \
+	@set -e; \
+	ECR_URL=$$(cd terraform && terraform output -raw ecr_repository_url); \
+	echo "$(YELLOW)ECR URL: $$ECR_URL$(NC)"; \
+	echo ""; \
+	echo "$(GREEN)[3/6] Login a ECR...$(NC)"; \
+	aws ecr get-login-password --region $(AWS_REGION) --profile $(AWS_PROFILE) | \
+		docker login --username AWS --password-stdin $$ECR_URL; \
+	echo ""; \
+	echo "$(GREEN)[4/6] Construyendo imagen Docker (linux/amd64)...$(NC)"; \
+	docker buildx build --platform linux/amd64 -t $(PROJECT_NAME) .; \
+	echo ""; \
+	echo "$(GREEN)[5/6] Pushing imagen a ECR...$(NC)"; \
+	docker tag $(PROJECT_NAME):latest $$ECR_URL:latest; \
+	docker push $$ECR_URL:latest; \
+	echo ""; \
+	echo "$(GREEN)[6/6] Forzando redespliegue de ECS...$(NC)"; \
+	ECS_CLUSTER=$$(cd terraform && terraform output -raw ecs_cluster_name); \
+	ECS_SERVICE=$$(cd terraform && terraform output -raw ecs_service_name); \
+	aws ecs update-service \
+		--cluster $$ECS_CLUSTER \
+		--service $$ECS_SERVICE \
 		--force-new-deployment \
-		--profile $(AWS_PROFILE) > /dev/null
-	
-	@echo ""
-	@echo "$(BLUE)════════════════════════════════════════════════════$(NC)"
-	@echo "$(GREEN)✓ DESPLIEGUE COMPLETADO EXITOSAMENTE!$(NC)"
-	@echo "$(BLUE)════════════════════════════════════════════════════$(NC)"
-	@echo ""
-	@echo "$(YELLOW)⚠️  IMPORTANTE:$(NC)"
-	@echo "  1. Revisa tu email y confirma la suscripción SNS"
-	@echo "  2. Espera ~2 minutos para que ECS inicie las tareas"
-	@echo "  3. Verifica logs: make logs"
-	@echo "  4. Ejecuta pruebas: make test-eicar"
-	@echo ""
+		--profile $(AWS_PROFILE) > /dev/null; \
+	echo ""; \
+	echo "$(BLUE)════════════════════════════════════════════════════$(NC)"; \
+	echo "$(GREEN)✓ DESPLIEGUE COMPLETADO EXITOSAMENTE!$(NC)"; \
+	echo "$(BLUE)════════════════════════════════════════════════════$(NC)"; \
+	echo ""; \
+	echo "$(YELLOW)⚠️  IMPORTANTE:$(NC)"; \
+	echo "  1. Revisa tu email y confirma la suscripción SNS"; \
+	echo "  2. Espera ~2 minutos para que ECS inicie las tareas"; \
+	echo "  3. Verifica logs: make logs"; \
+	echo "  4. Ejecuta pruebas: make test-eicar"; \
+	echo ""
 
 ## ============================================
 ## MONITORING
