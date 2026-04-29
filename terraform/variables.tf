@@ -63,11 +63,11 @@ variable "enable_nat_gateway" {
 variable "notification_email" {
   description = "Email address for malware detection alerts"
   type        = string
-  default     = "johanluna777@gmail.com"
+  default     = "your-email@example.com"
 }
 
 variable "notification_phone" {
-  description = "Phone number for SMS alerts (E.164 format: +573105405342)"
+  description = "Phone number for SMS alerts in E.164 format (e.g. +1234567890). Leave empty to disable SMS."
   type        = string
   default     = ""
 }

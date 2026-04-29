@@ -92,11 +92,6 @@ output "sqs_queue_arn" {
   value       = module.notifications.sqs_queue_arn
 }
 
-output "sqs_dlq_name" {
-  description = "SQS Dead Letter Queue name"
-  value       = module.notifications.sqs_dlq_name
-}
-
 output "sqs_dlq_arn" {
   description = "SQS Dead Letter Queue ARN"
   value       = module.notifications.sqs_dlq_arn

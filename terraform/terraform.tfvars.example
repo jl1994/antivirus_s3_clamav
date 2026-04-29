@@ -1,32 +1,32 @@
 # ============================================
-# TERRAFORM VARIABLES - EJEMPLO
+# TERRAFORM VARIABLES - EXAMPLE
 # ============================================
-# Copia este archivo a terraform.tfvars
-# y ajusta los valores según tu entorno
+# Copy this file to terraform.tfvars and fill in your values:
+#   cp terraform.tfvars.example terraform.tfvars
 # ============================================
 
 # AWS Configuration
 region  = "us-east-1"
-profile = "netluna"
+profile = "default"
 
 # Project Configuration
-project     = "s3-antivirus-tfm"
+project     = "s3-antivirus"
 environment = "dev"
-owner       = "Johan Luna"
+owner       = "Your Name"
 
-# Networking Configuration
-# IMPORTANTE: Usando rango poco común para evitar solapamiento con redes de clientes
+# Networking
 vpc_cidr           = "10.200.0.0/16"
 enable_nat_gateway = true
 
-# Notification Configuration
-notification_email = "johanluna777@gmail.com"
+# Notifications — replace with your real email and (optional) phone
+notification_email = "your-email@example.com"
+notification_phone = ""        # Optional: E.164 format e.g. "+1234567890"
 
-# ECS Task Configuration
-task_cpu    = "512"   # 0.5 vCPU
-task_memory = "1024"  # 1 GB
+# ECS Task
+task_cpu    = "512"    # 0.5 vCPU
+task_memory = "1024"   # 1 GB
 
-# Auto Scaling Configuration
+# Auto Scaling
 desired_task_count = 1
 enable_autoscaling = true
 min_task_count     = 1

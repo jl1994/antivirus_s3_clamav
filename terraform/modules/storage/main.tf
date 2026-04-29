@@ -11,7 +11,8 @@ data "aws_region" "current" {}
 # ============================================
 
 resource "aws_s3_bucket" "monitored" {
-  bucket = var.monitored_bucket_name
+  bucket        = var.monitored_bucket_name
+  force_destroy = true
 
   tags = {
     Name        = var.monitored_bucket_name
@@ -54,7 +55,8 @@ resource "aws_s3_bucket_public_access_block" "monitored" {
 # ============================================
 
 resource "aws_s3_bucket" "quarantine" {
-  bucket = var.quarantine_bucket_name
+  bucket        = var.quarantine_bucket_name
+  force_destroy = true
 
   tags = {
     Name        = var.quarantine_bucket_name

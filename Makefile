@@ -62,8 +62,8 @@ apply: validate ## Aplicar cambios de Terraform
 ## ============================================
 
 docker-build: ## Construir imagen Docker localmente
-	@echo "$(GREEN)Construyendo imagen Docker...$(NC)"
-	@docker build -t $(DOCKER_IMAGE) .
+	@echo "$(GREEN)Construyendo imagen Docker (linux/amd64)...$(NC)"
+	@docker buildx build --platform linux/amd64 -t $(DOCKER_IMAGE) .
 	@echo "$(GREEN)✓ Imagen construida: $(DOCKER_IMAGE)$(NC)"
 
 docker-run: docker-build ## Ejecutar contenedor localmente
@@ -109,8 +109,8 @@ deploy: validate ## Despliegue completo (Terraform + Docker + ECS)
 		docker login --username AWS --password-stdin $(ECR_URL)
 	
 	@echo ""
-	@echo "$(GREEN)[4/6] Construyendo imagen Docker...$(NC)"
-	@docker build -t $(PROJECT_NAME) .
+	@echo "$(GREEN)[4/6] Construyendo imagen Docker (linux/amd64)...$(NC)"
+	@docker buildx build --platform linux/amd64 -t $(PROJECT_NAME) .
 	
 	@echo ""
 	@echo "$(GREEN)[5/6] Pushing imagen a ECR...$(NC)"
@@ -145,7 +145,8 @@ deploy: validate ## Despliegue completo (Terraform + Docker + ECS)
 
 logs: ## Ver logs de CloudWatch en tiempo real
 	@echo "$(GREEN)Mostrando logs de CloudWatch (Ctrl+C para salir)...$(NC)"
-	@aws logs tail /ecs/s3-antivirus-tfm --follow --profile $(AWS_PROFILE)
+	$(eval LOG_GROUP := $(shell cd terraform && terraform output -raw cloudwatch_log_group))
+	@aws logs tail $(LOG_GROUP) --follow --profile $(AWS_PROFILE)
 
 status: ## Ver estado del servicio ECS
 	@echo "$(GREEN)Estado del servicio ECS:$(NC)"
@@ -206,15 +207,72 @@ test-eicar: ## Probar escaneo EICAR en AWS
 	@echo "$(BLUE)════════════════════════════════════════════════════$(NC)"
 
 ## ============================================
+## UPLOAD & SCALING TESTS
+## ============================================
+
+upload-file: ## Subir un fichero al bucket (FILE=ruta, KEY=destino opcional)
+	$(eval BUCKET := $(shell cd terraform && terraform output -raw monitored_bucket_name))
+	$(eval KEY := $(if $(KEY),$(KEY),upload/$(notdir $(FILE))))
+	@aws s3 cp $(FILE) s3://$(BUCKET)/$(KEY) --profile $(AWS_PROFILE)
+	@echo "$(GREEN)✓ Subido: s3://$(BUCKET)/$(KEY)$(NC)"
+
+upload-clean: ## Subir archivo limpio de prueba
+	$(eval BUCKET := $(shell cd terraform && terraform output -raw monitored_bucket_name))
+	@echo "Archivo limpio TFM Johan Luna" > /tmp/clean-demo.txt
+	@aws s3 cp /tmp/clean-demo.txt s3://$(BUCKET)/demo/clean-demo.txt --profile $(AWS_PROFILE)
+	@echo "$(GREEN)✓ Archivo limpio subido$(NC)"
+	@echo "  Verifica en ~30s: aws s3api get-object-tagging --bucket $(BUCKET) --key demo/clean-demo.txt"
+
+upload-eicar: ## Subir archivo EICAR infectado de prueba
+	$(eval BUCKET := $(shell cd terraform && terraform output -raw monitored_bucket_name))
+	$(eval QUARANTINE := $(shell cd terraform && terraform output -raw quarantine_bucket_name))
+	@printf 'X5O!P%%@AP[4\PZX54(P^)7CC)7}$$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$$H+H*' > /tmp/eicar-demo.exe
+	@aws s3 cp /tmp/eicar-demo.exe s3://$(BUCKET)/demo/eicar-demo.exe --profile $(AWS_PROFILE)
+	@echo "$(GREEN)✓ EICAR subido$(NC)"
+	@echo "  Verifica tags en ~30s:"
+	@echo "  aws s3api get-object-tagging --bucket $(BUCKET) --key demo/eicar-demo.exe"
+	@echo "  Verifica cuarentena en ~30s:"
+	@echo "  aws s3 ls s3://$(QUARANTINE)/ --recursive"
+
+scale-test: ## Prueba de carga para disparar autoscaling (sube COUNT=25 ficheros EICAR)
+	@echo "$(BLUE)════════════════════════════════════════════════════$(NC)"
+	@echo "$(GREEN)  INICIANDO PRUEBA DE ESCALADO$(NC)"
+	@echo "$(BLUE)════════════════════════════════════════════════════$(NC)"
+	@bash scripts/scale_test.sh $(if $(COUNT),$(COUNT),25)
+
+watch-scale: ## Monitorear escalado ECS en tiempo real (Ctrl+C para salir)
+	@echo "$(GREEN)Monitoreando escalado ECS (Ctrl+C para salir)...$(NC)"
+	@echo "$(YELLOW)Target: >10 msgs en SQS dispara scale-out. Cooldown scale-in: 300s$(NC)"
+	@echo ""
+	@bash scripts/watch_scale.sh
+
+## ============================================
 ## CLEANUP
 ## ============================================
 
-destroy: ## Destruir toda la infraestructura (⚠️ PELIGROSO)
+empty-buckets: ## Vaciar los buckets S3 (necesario antes de destroy)
+	$(eval BUCKET := $(shell cd terraform && terraform output -raw monitored_bucket_name))
+	$(eval QUARANTINE := $(shell cd terraform && terraform output -raw quarantine_bucket_name))
+	@echo "$(YELLOW)Vaciando bucket uploads...$(NC)"
+	@aws s3 rm s3://$(BUCKET) --recursive --profile $(AWS_PROFILE)
+	@echo "$(YELLOW)Vaciando bucket cuarentena...$(NC)"
+	@aws s3 rm s3://$(QUARANTINE) --recursive --profile $(AWS_PROFILE)
+	@echo "$(GREEN)✓ Buckets vaciados$(NC)"
+
+destroy: empty-buckets ## Destruir toda la infraestructura (vacía buckets + terraform destroy)
 	@echo "$(RED)⚠️  ADVERTENCIA: Esto eliminará TODA la infraestructura$(NC)"
 	@echo "$(RED)⚠️  Presiona Ctrl+C para cancelar, Enter para continuar...$(NC)"
 	@read -p ""
-	@cd terraform && terraform destroy
+	@cd terraform && terraform destroy -auto-approve
 	@echo "$(GREEN)✓ Infraestructura destruida$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Verificando NAT Gateway (puede tardar 1 min en eliminar)...$(NC)"
+	@aws ec2 describe-nat-gateways \
+		--filter "Name=tag:Project,Values=s3-antivirus-tfm" \
+		--region $(AWS_REGION) \
+		--query 'NatGateways[?State!=`deleted`].[NatGatewayId,State]' \
+		--output table --profile $(AWS_PROFILE) 2>/dev/null || true
+	@echo "$(GREEN)Tabla vacía = NAT Gateway eliminado correctamente$(NC)"
 
 clean: ## Limpiar archivos temporales
 	@echo "$(GREEN)Limpiando archivos temporales...$(NC)"

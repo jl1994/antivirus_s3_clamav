@@ -1,641 +1,291 @@
-# 🛡️ S3 Antivirus Scanner
+# S3 Antivirus Scanner
 
 [![Terraform](https://img.shields.io/badge/Terraform-v1.5+-623CE4?logo=terraform)](https://www.terraform.io/)
 [![AWS](https://img.shields.io/badge/AWS-ECS_Fargate-FF9900?logo=amazon-aws)](https://aws.amazon.com/)
-[![ClamAV](https://img.shields.io/badge/ClamAV-Latest-00A4EF?logo=clamav)](https://www.clamav.net/)
+[![ClamAV](https://img.shields.io/badge/ClamAV-1.4-00A4EF)](https://www.clamav.net/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-**Arquitectura serverless automatizada en AWS para detección y cuarentena de malware en tiempo real en buckets S3 usando ClamAV.**
+Event-driven architecture on AWS that automatically scans every file uploaded to S3 with ClamAV. Infected files are moved to a quarantine bucket and the admin is notified by email/SMS.
 
 ---
 
-## 📋 Tabla de Contenidos
+## Architecture
 
-- [Características](#-características)
-- [Arquitectura](#-arquitectura)
-- [Requisitos Previos](#-requisitos-previos)
-- [Instalación](#-instalación)
-- [Configuración](#-configuración)
-- [Despliegue](#-despliegue)
-- [Testing Local con Docker](#-testing-local-con-docker)
-- [Pruebas con EICAR](#-pruebas-con-eicar)
-- [Monitoreo](#-monitoreo)
-- [Costos Estimados](#-costos-estimados)
-- [Troubleshooting](#-troubleshooting)
-- [Contribuciones](#-contribuciones)
-- [Licencia](#-licencia)
+```
+User → S3 Uploads → SQS → ECS Fargate (Python + ClamAV)
+                                  │
+                          INFECTED │
+                                  ▼
+                     S3 Quarantine + SNS (email + SMS)
+```
+
+**AWS stack:** S3, SQS + DLQ, ECS Fargate, ECR, ClamAV 1.4, SNS, CloudWatch, VPC (multi-AZ), NAT Gateway, IAM (least-privilege roles).
 
 ---
 
-## ✨ Características
+## Prerequisites
 
-- ✅ **Escaneo automático** de todos los archivos subidos a S3
-- ✅ **Arquitectura serverless** con AWS ECS Fargate (sin servidores que administrar)
-- ✅ **Infraestructura como Código** (IaC) con Terraform modular y reutilizable
-- ✅ **Alta disponibilidad** con deployment Multi-AZ
-- ✅ **Auto-escalado** basado en la profundidad de la cola SQS (1-5 tareas)
-- ✅ **Cuarentena automática** de archivos infectados con metadata enriquecida
-- ✅ **Notificaciones por email** vía SNS ante detección de malware
-- ✅ **Actualización automática** de firmas ClamAV mediante FreshClam
-- ✅ **Seguridad robusta**: VPC privada, least privilege IAM, cifrado en reposo
-- ✅ **Costos optimizados** con VPC Endpoints y lifecycle policies
+- Terraform >= 1.5
+- AWS CLI v2 configured (`aws configure`)
+- Docker (for building the scanner image)
+- Make
 
 ---
 
-## 🏗️ Arquitectura
+## Quick Start
 
-### Diagrama General
-
-```
-┌─────────────┐
-│   Usuario   │
-│  Upload File│
-└──────┬──────┘
-       │
-       ▼
-┌──────────────────────────────────────────────────────────┐
-│              AWS CLOUD (us-east-1)                       │
-│                                                           │
-│  ┌─────────────┐  ②Event   ┌─────────────┐             │
-│  │ S3 Monitored├──────────►│ EventBridge │             │
-│  │   Bucket    │            └──────┬──────┘             │
-│  └─────────────┘                   │                     │
-│                                    │ ③Send               │
-│  ┌─────────────┐                   ▼                     │
-│  │ S3 Quarantine│◄─⑦────┌──────────────┐                │
-│  │   Bucket     │ Copy  │  SQS Queue   │                │
-│  └─────────────┘        └──────┬───────┘                │
-│                                 │                         │
-│                          ④Poll  │                         │
-│  ┌──────────────────────────────▼──────────────┐        │
-│  │  VPC 10.200.0.0/16                          │        │
-│  │  ┌────────────────────────────────────┐     │        │
-│  │  │ Private Subnets (/27)              │     │        │
-│  │  │                                     │     │        │
-│  │  │  ┌──────────────────────────┐     │     │        │
-│  │  │  │  ECS Fargate Tasks       │     │     │        │
-│  │  │  │  ┌────────────────────┐  │     │     │        │
-│  │  │  │  │ ClamAV Engine      │  │     │     │        │
-│  │  │  │  │ Python Worker      │  │     │     │        │
-│  │  │  │  └────────────────────┘  │     │     │        │
-│  │  │  │  CPU: 0.5 vCPU          │     │     │        │
-│  │  │  │  RAM: 1 GB              │     │     │        │
-│  │  │  │  Auto-scale: 1-5 tasks  │     │     │        │
-│  │  │  └──────────────────────────┘     │     │        │
-│  │  └────────────────────────────────────┘     │        │
-│  │                                               │        │
-│  │  ┌────────────────────────────────────┐     │        │
-│  │  │ Public Subnets (/24)               │     │        │
-│  │  │  ┌──────────────┐                  │     │        │
-│  │  │  │ NAT Gateway  │                  │     │        │
-│  │  │  └──────────────┘                  │     │        │
-│  │  └────────────────────────────────────┘     │        │
-│  └──────────────────────────────────────────────┘        │
-│                                                           │
-│  ⑧ Malware Detected?                                     │
-│         │                                                 │
-│         ▼                                                 │
-│  ┌─────────────┐                                         │
-│  │  SNS Topic  │─────────────────────────────────────┐   │
-│  └─────────────┘                                     │   │
-└──────────────────────────────────────────────────────┼───┘
-                                                       │
-                                                       ▼
-                                             ┌─────────────────┐
-                                             │ 📧 Email Alert  │
-                                             │johanluna777@... │
-                                             └─────────────────┘
-```
-
-### Flujo de Procesamiento
-
-1. **Upload**: Usuario sube archivo a S3 bucket monitoreado
-2. **Event**: S3 genera evento `ObjectCreated` → EventBridge
-3. **Queue**: EventBridge envía mensaje a SQS Queue
-4. **Poll**: ECS Fargate tasks consumen mensajes (long polling 20s)
-5. **Scan**: Descarga archivo, ejecuta `clamscan`, calcula hash SHA256
-6. **Decision**:
-   - **CLEAN**: Aplica tags `ScanStatus: CLEAN` al objeto S3
-   - **INFECTED**: Copia a bucket de cuarentena con metadata + envía alerta SNS
-7. **Cleanup**: Elimina archivo temporal y mensaje SQS
-8. **Notification**: SNS envía email si se detectó malware
-
----
-
-## 📦 Requisitos Previos
-
-### Software Necesario
-
-- **Terraform** >= 1.5.0 ([Descargar](https://www.terraform.io/downloads))
-- **AWS CLI** >= 2.x ([Instalar](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html))
-- **Docker** >= 20.x (para testing local) ([Instalar](https://docs.docker.com/get-docker/))
-- **Make** (incluido en macOS/Linux, Git Bash en Windows)
-
-### Cuenta AWS
-
-- Cuenta AWS activa
-- IAM User con permisos suficientes:
-  - `AmazonEC2FullAccess`
-  - `AmazonS3FullAccess`
-  - `AmazonECSFullAccess`
-  - `IAMFullAccess`
-  - `AmazonVPCFullAccess`
-  - `AmazonSQSFullAccess`
-  - `AmazonSNSFullAccess`
-
-> **Nota**: En producción, usa roles IAM más restrictivos basados en el principio de mínimo privilegio.
-
-### Configurar AWS CLI
+### 1. Configure variables
 
 ```bash
-# Configurar AWS CLI (usar perfil default)
-aws configure
-
-# Verificar credenciales
-aws sts get-caller-identity
+cp terraform/terraform.tfvars.example terraform/terraform.tfvars
+# Edit terraform/terraform.tfvars — set your email and AWS profile
 ```
 
----
-
-## 🚀 Instalación
-
-### 1. Clonar Repositorio
+### 2. Deploy infrastructure
 
 ```bash
-git clone https://github.com/jl1994/terraform-aws-s3-antivirus.git
-cd terraform-aws-s3-antivirus
+make init
+make plan       # review: expects ~58 resources
 ```
 
-### 2. Verificar Requisitos
+If the plan looks correct:
 
 ```bash
-# Verificar versiones
-terraform version    # Debe ser >= 1.5.0
-aws --version        # Debe ser >= 2.x
-docker --version     # Para testing local
-make --version       # Para comandos automatizados
+terraform -chdir=terraform apply -auto-approve
 ```
 
----
-
-## ⚙️ Configuración
-
-### 1. Crear Archivo de Variables
+### 3. Build and push Docker image
 
 ```bash
-cd terraform
-cp terraform.tfvars.example terraform.tfvars
-```
-
-### 2. Editar `terraform/terraform.tfvars`
-
-```hcl
-# AWS Configuration
-region  = "us-east-1"       # Región AWS donde desplegar
-profile = "default"         # Perfil AWS CLI configurado
-
-# Project Configuration
-project     = "s3-antivirus"
-environment = "dev"
-owner       = "Johan Luna"
-
-# Networking Configuration
-vpc_cidr           = "10.200.0.0/16"  # CIDR poco común para evitar solapamiento
-enable_nat_gateway = true              # Habilitar NAT Gateway ($0.045/hora)
-
-# Notification Configuration
-notification_email = "tu-email@example.com"     # ⚠️ IMPORTANTE: Cambiar a tu email
-notification_phone = "+57XXXXXXXXXX"            # (Opcional) Número para alertas SMS en formato E.164
-
-# ECS Task Configuration
-task_cpu    = "512"   # 0.5 vCPU
-task_memory = "1024"  # 1 GB
-
-# Auto Scaling Configuration
-desired_task_count = 1    # Número inicial de tareas
-enable_autoscaling = true
-min_task_count     = 1    # Mínimo de tareas
-max_task_count     = 5    # Máximo de tareas
-```
-
-### 3. (Opcional) Configurar Backend Remoto S3
-
-Si quieres almacenar el state de Terraform en S3:
-
-1. Crear bucket para Terraform state:
-
-```bash
-aws s3 mb s3://tu-terraform-state-bucket ```
-
-2. Descomentar y configurar en `terraform/main.tf`:
-
-```hcl
-backend "s3" {
-  bucket  = "tu-terraform-state-bucket"
-  key     = "s3-antivirus/terraform.tfstate"
-  region  = "us-east-1"
-  profile = "default"
-  encrypt = true
-}
-```
-
----
-
-## 🎯 Despliegue
-
-### Opción 1: Despliegue Completo Automatizado
-
-Usar el Makefile para deployment completo:
-
-```bash
-# Ver todos los comandos disponibles
-make help
-
-# Despliegue completo (Terraform + Docker build + ECS deploy)
-make deploy
-```
-
-### Opción 2: Despliegue Manual Paso a Paso
-
-#### **Paso 1: Inicializar Terraform**
-
-```bash
-cd terraform
-terraform init
-```
-
-#### **Paso 2: Revisar Plan de Infraestructura**
-
-```bash
-terraform plan
-```
-
-Revisa los recursos que se crearán:
-- 1 VPC con 4 subnets (2 públicas, 2 privadas)
-- 2 NAT Gateways
-- 4 VPC Endpoints
-- 2 S3 Buckets
-- 1 SQS Queue + DLQ
-- 1 SNS Topic
-- 1 ECR Repository
-- 1 ECS Cluster + Service
-- Varios IAM Roles y Security Groups
-
-#### **Paso 3: Aplicar Infraestructura**
-
-```bash
-terraform apply
-```
-
-Escribe `yes` cuando se te solicite confirmación.
-
-⏱️ **Tiempo estimado**: 5-7 minutos
-
-#### **Paso 4: Confirmar Suscripciones SNS**
-
-Después del deploy, recibirás notificaciones de AWS SNS:
-
-**Email:**
-```
-Subject: AWS Notification - Subscription Confirmation
-```
-**¡IMPORTANTE!** Haz clic en **"Confirm subscription"** en el email para activar las notificaciones por correo.
-
-**SMS (si configuraste notification_phone):**
-Recibirás un mensaje de texto con un enlace de confirmación. Responde según las instrucciones para activar alertas SMS.
-
-#### **Paso 5: Build y Push de Imagen Docker**
-
-```bash
-# Obtener URL del repositorio ECR
-ECR_URL=$(terraform output -raw ecr_repository_url)
-
-# Login a ECR
+# Login to ECR
 aws ecr get-login-password --region us-east-1 | \
-  docker login --username AWS --password-stdin $ECR_URL
+  docker login --username AWS --password-stdin \
+  $(terraform -chdir=terraform output -raw ecr_repository_url)
 
-# Build imagen Docker (desde el root del proyecto)
-cd ..
-docker build -t s3-antivirus-scanner .
+# Build (linux/amd64 required for Fargate — mandatory on Apple Silicon)
+docker buildx build --platform linux/amd64 -t s3-antivirus .
 
-# Tag imagen
-docker tag s3-antivirus-scanner:latest $ECR_URL:latest
+# Tag and push
+docker tag s3-antivirus:latest \
+  $(terraform -chdir=terraform output -raw ecr_repository_url):latest
 
-# Push a ECR
-docker push $ECR_URL:latest
+docker push \
+  $(terraform -chdir=terraform output -raw ecr_repository_url):latest
 ```
 
-#### **Paso 6: Forzar Redespliegue de ECS**
+### 4. Force ECS redeployment and wait for stability
 
 ```bash
-# Volver a terraform/
-cd terraform
-
-# Obtener nombre del servicio ECS
-ECS_SERVICE=$(terraform output -raw ecs_service_name)
-ECS_CLUSTER=$(terraform output -raw ecs_cluster_name)
-
-# Forzar nuevo deployment
 aws ecs update-service \
-  --cluster $ECS_CLUSTER \
-  --service $ECS_SERVICE \
+  --cluster $(terraform -chdir=terraform output -raw ecs_cluster_name) \
+  --service $(terraform -chdir=terraform output -raw ecs_service_name) \
   --force-new-deployment \
-  ```
+  --region us-east-1 > /dev/null
 
-#### **Paso 7: Verificar Deployment**
+aws ecs wait services-stable \
+  --cluster $(terraform -chdir=terraform output -raw ecs_cluster_name) \
+  --services $(terraform -chdir=terraform output -raw ecs_service_name) \
+  --region us-east-1
 
-```bash
-# Ver tareas ECS activas
-aws ecs list-tasks \
-  --cluster $ECS_CLUSTER \
-  --service-name $ECS_SERVICE \
-  
-# Ver logs de CloudWatch
-make logs
+echo "Service stable"
+```
 
-# O manualmente:
-aws logs tail /ecs/s3-antivirus --follow ```
+### 5. Confirm SNS subscription
+
+After deploy, AWS sends a confirmation email. **Click "Confirm subscription"** in your inbox — without this, malware alert emails will not be delivered.
 
 ---
 
-## 🐳 Testing Local con Docker
-
-Antes de desplegar a AWS, puedes probar el scanner localmente:
-
-### 1. Construir Imagen
+## Upload Files
 
 ```bash
-make docker-build
+# Single clean file
+make upload-clean
+
+# Single EICAR test file (simulated malware)
+make upload-eicar
+
+# Custom file
+make upload-file FILE=/path/to/file.pdf KEY=uploads/file.pdf
+
+# Or directly with AWS CLI
+BUCKET=$(terraform -chdir=terraform output -raw monitored_bucket_name)
+
+aws s3 cp myfile.pdf s3://$BUCKET/uploads/myfile.pdf --region us-east-1
 ```
 
-### 2. Ejecutar Contenedor Local
+After ~30 seconds, verify the scan result:
 
 ```bash
-make docker-run
-```
+BUCKET=$(terraform -chdir=terraform output -raw monitored_bucket_name)
 
-### 3. Probar Escaneo Local
-
-```bash
-# Crear archivo de prueba EICAR
-make test-eicar-local
-
-# Verificar logs del contenedor
-docker logs s3-antivirus-local
-```
-
-### 4. Detener Contenedor
-
-```bash
-make docker-stop
-```
-
----
-
-## 🦠 Pruebas con EICAR
-
-[EICAR](https://www.eicar.org/download-anti-malware-testfile/) es un archivo de prueba estándar para antivirus (NO es malware real).
-
-### Prueba 1: Archivo CLEAN (Texto Simple)
-
-```bash
-# Crear archivo limpio
-echo "This is a clean test file" > clean-test.txt
-
-# Subir a S3 (cambiar BUCKET_NAME por el nombre de tu bucket)
-BUCKET_NAME=$(cd terraform && terraform output -raw monitored_bucket_name)
-aws s3 cp clean-test.txt s3://$BUCKET_NAME/ 
-# Verificar tags después de ~30 segundos
+# Check tags on a scanned file
 aws s3api get-object-tagging \
-  --bucket $BUCKET_NAME \
-  --key clean-test.txt \
-  
-# Output esperado:
-# {
-#   "TagSet": [
-#     {"Key": "ScanStatus", "Value": "CLEAN"},
-#     {"Key": "ScanDate", "Value": "2024-01-XX..."},
-#     {"Key": "FileHash", "Value": "sha256:..."}
-#   ]
-# }
+  --bucket $BUCKET \
+  --key uploads/myfile.pdf \
+  --region us-east-1
 ```
 
-### Prueba 2: Archivo INFECTADO (EICAR)
+Expected tags:
 
-```bash
-# Crear archivo EICAR (firma de prueba estándar)
-echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > eicar.txt
+| Tag | Value |
+|-----|-------|
+| `ScanStatus` | `CLEAN` or `INFECTED` |
+| `ScanDate` | ISO 8601 timestamp |
+| `FileHash` | SHA-256 of the file |
+| `VirusName` | ClamAV signature name (only if INFECTED) |
 
-# Subir a S3
-aws s3 cp eicar.txt s3://$BUCKET_NAME/ 
-# Verificar que fue movido a cuarentena después de ~30 segundos
-QUARANTINE_BUCKET=$(cd terraform && terraform output -raw quarantine_bucket_name)
-aws s3 ls s3://$QUARANTINE_BUCKET/infected/ --recursive 
-# Verificar que recibiste email de alerta
+Infected files are automatically moved to:
+
 ```
-
-**Output esperado**:
-
-- ✅ Archivo `eicar.txt` copiado a bucket de cuarentena con path: `infected/YYYY/MM/DD/sha256_eicar.txt`
-- ✅ Email de alerta recibido con detalles del malware
-- ✅ Logs en CloudWatch indicando "MALWARE DETECTED"
-
-### Comando Automatizado
-
-```bash
-# Ejecutar suite completa de pruebas EICAR
-make test-eicar
+s3://<quarantine-bucket>/infected/YYYY/MM/DD/<sha256>_<original-key>
 ```
 
 ---
 
-## 📊 Monitoreo
-
-### Ver Logs en Tiempo Real
+## Monitoring
 
 ```bash
-# Logs de CloudWatch (últimos 10 minutos)
+# Stream worker logs live
 make logs
 
-# Logs con filtro
-aws logs filter-log-events \
-  --log-group-name /ecs/s3-antivirus \
-  --filter-pattern "INFECTED" \
-  ```
+# ECS service status
+make status
 
-### Métricas en CloudWatch
+# List running tasks
+make tasks
 
-1. Ir a **AWS Console** → **CloudWatch** → **Metrics**
-2. Buscar namespace: `AWS/SQS`, `AWS/ECS`
-3. Métricas clave:
-   - **SQS ApproximateNumberOfMessagesVisible**: Mensajes pendientes en cola
-   - **ECS CPUUtilization**: Uso de CPU de tareas
-   - **ECS MemoryUtilization**: Uso de memoria
-   - **SQS ApproximateAgeOfOldestMessage**: Edad del mensaje más antiguo
-
-### Alarmas Configuradas
-
-- **DLQ Messages Alarm**: Se activa cuando hay >5 mensajes en Dead Letter Queue
-  - Acción: Envía notificación SNS a tu email
-
----
-
-## 💰 Costos Estimados
-
-Estimación de costos mensuales en `us-east-1` (730 horas/mes):
-
-| Servicio | Configuración | Costo Mensual (USD) |
-|----------|---------------|---------------------|
-| **ECS Fargate** | 1 task (0.5 vCPU, 1 GB) 24/7 | ~$14.60 |
-| **NAT Gateway** | 2 NAT Gateways x 2 AZs | ~$65.70 (+ $0.045/GB data) |
-| **VPC Endpoints** | 3 Interface Endpoints | ~$21.90 (+ $0.01/GB) |
-| **S3 Storage** | 10 GB almacenamiento | ~$0.23 |
-| **SQS** | 1M requests | ~$0.40 |
-| **SNS** | 100 emails | ~$0.00 (gratis) |
-| **CloudWatch Logs** | 5 GB logs | ~$2.50 |
-| **Data Transfer** | 10 GB salida | ~$0.90 |
-| **TOTAL ESTIMADO** | | **~$106/mes** |
-
-### Optimización de Costos
-
-1. **Deshabilitar NAT Gateway si no necesitas actualizar firmas ClamAV frecuentemente**:
-   ```hcl
-   enable_nat_gateway = false
-   ```
-   Ahorro: ~$66/mes ⚠️ Requiere actualización manual de firmas
-
-2. **Usar regiones más baratas** (ej: `us-east-2`):
-   Ahorro: ~10-15%
-
-3. **Auto-scaling agresivo**: Escalar a 0 tareas cuando no hay archivos
-   Requiere: Lambda para iniciar tareas bajo demanda
-
----
-
-## 🔧 Troubleshooting
-
-### Problema: Tareas ECS fallan inmediatamente
-
-**Síntoma**: Tareas ECS se detienen en 1-2 minutos
-
-**Soluciones**:
-
-```bash
-# 1. Verificar logs de tareas
-make logs
-
-# 2. Verificar que la imagen Docker existe en ECR
-aws ecr describe-images --repository-name s3-antivirus-scanner 
-# 3. Verificar roles IAM
-aws iam get-role --role-name s3-antivirus-ecs-task-role ```
-
-### Problema: No recibo emails de alerta
-
-**Soluciones**:
-
-1. Verificar que confirmaste la suscripción SNS (revisa tu bandeja de spam)
-2. Verificar que el topic SNS tiene suscripciones activas:
-
-```bash
-aws sns list-subscriptions-by-topic \
-  --topic-arn $(cd terraform && terraform output -raw sns_topic_arn) \
-  ```
-
-### Problema: Archivo no se escanea
-
-**Diagnóstico**:
-
-```bash
-# 1. Verificar mensajes en SQS
+# Check SQS queue depth
 aws sqs get-queue-attributes \
-  --queue-url $(cd terraform && terraform output -raw sqs_queue_url) \
-  --attribute-names All \
-  
-# 2. Verificar notificaciones S3 están configuradas
-BUCKET=$(cd terraform && terraform output -raw monitored_bucket_name)
-aws s3api get-bucket-notification-configuration --bucket $BUCKET ```
-
-### Problema: Error "terraform init failed"
-
-**Solución**:
-
-```bash
-# Eliminar cache y reinicializar
-rm -rf .terraform .terraform.lock.hcl
-terraform init
+  --queue-url $(terraform -chdir=terraform output -raw sqs_queue_url) \
+  --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible \
+  --region us-east-1
 ```
 
 ---
 
-## 🛠️ Comandos Make Útiles
+## Autoscaling Test
+
+The service scales from 1 to 5 tasks when the SQS queue exceeds 10 visible messages (TargetTracking policy, scale-out cooldown 60 s).
 
 ```bash
-make help              # Ver todos los comandos disponibles
-make validate          # Validar sintaxis Terraform
-make plan              # Ver plan de cambios
-make deploy            # Despliegue completo automatizado
-make destroy           # Destruir toda la infraestructura
-make logs              # Ver logs de CloudWatch
-make docker-build      # Construir imagen Docker local
-make docker-run        # Ejecutar contenedor local
-make test-eicar        # Pruebas con ficheros EICAR
-make clean             # Limpiar archivos temporales
+# Upload 50 EICAR files in parallel to trigger autoscaling
+make scale-test COUNT=50
+
+# Watch scaling in real time (Ctrl+C to stop)
+make watch-scale
+```
+
+Expected output from `watch-scale`:
+
+```
+Hora     | SQS Msgs   | Running    | Desired    | Pending
+---------|------------|------------|------------|------------
+16:14:00 | 47 (+3)    | 1          | 1          | 0
+16:14:10 | 45 (+5)    | 1          | 5          | 4   ← scaled
+16:16:00 | 12 (+5)    | 5          | 5          | 0   ← all running
+16:18:00 | 0  (+0)    | 5          | 1          | 0   ← scale in
 ```
 
 ---
 
-## 🧹 Destruir Infraestructura
-
-⚠️ **ADVERTENCIA**: Esto eliminará TODOS los recursos creados.
+## Destroy
 
 ```bash
-# Usando Make
 make destroy
-
-# O manualmente
-cd terraform
-terraform destroy
 ```
 
-Escribe `yes` para confirmar.
+`make destroy` empties both S3 buckets (including all versions) and then runs `terraform destroy -auto-approve`. Both S3 buckets and ECR are configured with `force_destroy = true` so no manual cleanup is needed.
+
+After destroy, verify that the NAT Gateway is gone (it charges ~$0.045/h if left running):
+
+```bash
+aws ec2 describe-nat-gateways \
+  --filter "Name=tag:Project,Values=s3-antivirus-tfm" \
+  --region us-east-1 \
+  --query 'NatGateways[?State!=`deleted`].[NatGatewayId,State]' \
+  --output table
+```
+
+An empty table confirms full cleanup.
 
 ---
 
-## 🤝 Contribuciones
+## All Make Targets
 
-Las contribuciones son bienvenidas. Por favor:
+```bash
+make help           # list all targets
 
-1. Fork el repositorio
-2. Crea una branch (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit cambios (`git commit -am 'Agregar nueva funcionalidad'`)
-4. Push a la branch (`git push origin feature/nueva-funcionalidad`)
-5. Abre un Pull Request
+# Infrastructure
+make init           # terraform init
+make validate       # terraform validate
+make plan           # terraform plan
+make deploy         # full deploy: terraform + docker build + ECR push + ECS update
+make destroy        # empty buckets + terraform destroy
+
+# Docker
+make docker-build   # build image locally
+make docker-run     # run container locally
+make docker-stop    # stop local container
+
+# Upload
+make upload-clean   # upload a clean test file
+make upload-eicar   # upload an EICAR test file
+make upload-file    # upload FILE=path [KEY=s3-key]
+
+# Monitoring
+make logs           # tail CloudWatch logs (Ctrl+C to stop)
+make status         # ECS service status table
+make tasks          # list active ECS tasks
+make outputs        # print Terraform outputs
+
+# Testing
+make test-eicar         # upload clean + EICAR and print verification commands
+make test-eicar-local   # run EICAR scan inside local Docker container
+make scale-test         # upload COUNT=N files to trigger autoscaling (default 25)
+make watch-scale        # monitor SQS depth + ECS task count in real time
+
+# Cleanup
+make clean          # remove local temp files and Docker image
+make empty-buckets  # empty S3 buckets (runs automatically inside destroy)
+```
 
 ---
 
-## 📄 Licencia
+## Cost Estimate (us-east-1, 24/7)
 
-Este proyecto está licenciado bajo Apache License 2.0 - ver [LICENSE](LICENSE) para detalles.
+| Service | Config | Monthly (USD) |
+|---------|--------|---------------|
+| ECS Fargate | 1 task, 0.5 vCPU, 1 GB | ~$15 |
+| NAT Gateway | 2 AZs | ~$66 |
+| VPC Endpoints | 3 Interface | ~$22 |
+| S3 + SQS + SNS + CW | baseline | ~$4 |
+| **Total** | | **~$107/mo** |
 
----
-
-## 👨‍💻 Autor
-
-**Johan Ederlien Luna Bermeo**  
-🎓 Máster en Ciberseguridad - Universidad Internacional de La Rioja (UNIR)  
-📧 Email: johanluna777@gmail.com  
-🔗 LinkedIn: [linkedin.com/in/johanluna](https://www.linkedin.com/in/johan-ederlien-luna-bermeo-b425ab98/)  
-🐙 GitHub: [@jl1994](https://github.com/jl1994)
+To cut costs, set `enable_nat_gateway = false` (saves ~$66/mo — requires manual ClamAV signature updates).
 
 ---
 
-## 📚 Referencias
+## Troubleshooting
 
-- [AWS Well-Architected Framework](https://aws.amazon.com/architecture/well-architected/)
-- [ClamAV Documentation](https://docs.clamav.net/)
-- [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
-- [EICAR Test Files](https://www.eicar.org/download-anti-malware-testfile/)
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Task stops with `CannotPullContainerError` | Image not in ECR or wrong arch | Re-run docker build + push steps |
+| Files not scanned | S3→SQS notification not set | Run `terraform apply` again |
+| Email not received | SNS subscription not confirmed | Check inbox + spam for confirmation link |
+| Task loops restarting | Not enough memory | Set `task_memory = "2048"` in tfvars + apply |
+| `terraform destroy` fails on S3 | Bucket not empty | Run `make empty-buckets` first |
 
 ---
 
-**⭐ Si este proyecto te fue útil, considera darle una estrella en GitHub!**
+## Author
+
+**Johan Ederlien Luna Bermeo**
+Master in Cybersecurity — Universidad Internacional de La Rioja (UNIR)
+[LinkedIn](https://www.linkedin.com/in/johan-ederlien-luna-bermeo-b425ab98/) · [GitHub](https://github.com/jl1994)
+
+---
+
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE).
